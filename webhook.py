@@ -1,10 +1,10 @@
 from flask import Flask, request, jsonify
 import datetime
 import requests
+import os
 
 app = Flask(__name__)
 
-# Константы
 EXPECTED_TOKEN = '92a8247c0ce7472a86a5c36f71327d19'
 LOG_FILE = 'wazzup_log.txt'
 WAZZUP_WEBHOOKS_API = 'https://api.wazzup24.com/v3/webhooks'
@@ -18,12 +18,9 @@ def index():
 @app.route('/webhook', methods=['POST', 'GET'])
 def webhook():
     if request.method == 'GET':
-        # Возвращаем простой ответ, чтобы не было ошибки 405
         return jsonify({"status": "ready"}), 200
 
-    # Для POST — проверяем токен
     token = request.headers.get('Authorization', '').replace('Bearer ', '').strip()
-
     if token != EXPECTED_TOKEN:
         log(f"❌ Неверный токен: {token}")
         return jsonify({'error': 'Unauthorized'}), 401
@@ -40,11 +37,6 @@ def webhook():
 
 @app.route('/subscribe', methods=['POST'])
 def subscribe():
-    """
-    Endpoint для подписки на вебхуки Wazzup.
-    Ожидает JSON с параметрами подписки: url и events.
-    """
-
     token = request.headers.get('Authorization', '').replace('Bearer ', '').strip()
     if token != EXPECTED_TOKEN:
         return jsonify({'error': 'Unauthorized'}), 401
@@ -73,7 +65,6 @@ def subscribe():
 
     try:
         response = requests.patch(WAZZUP_WEBHOOKS_API, json=payload, headers=headers, timeout=30)
-
         if response.status_code == 200:
             log(f"✅ Подписка на вебхуки успешна: {response.text}")
             return jsonify({'status': 'subscribed', 'response': response.json()}), 200
@@ -87,9 +78,12 @@ def subscribe():
 
 def log(message: str):
     now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    full_message = f"{now} — {message}"
+    print(full_message)
     with open(LOG_FILE, 'a', encoding='utf-8') as f:
-        f.write(f"{now} — {message}\n")
+        f.write(full_message + "\n")
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=10000)
+    port = int(os.environ.get('PORT', 10000))
+    app.run(host='0.0.0.0', port=port)
