@@ -70,7 +70,8 @@ def subscribe():
 
     # Отправляем PATCH-запрос для подписки
     try:
-        response = requests.patch(WAZZUP_WEBHOOKS_API, json=payload, headers=headers, timeout=10)
+        response = requests.patch(WAZZUP_WEBHOOKS_API, json=payload, headers=headers, timeout=30)  # 30 секунд вместо 10
+
         if response.status_code == 200:
             log(f"✅ Подписка на вебхуки успешна: {response.text}")
             return jsonify({'status': 'subscribed', 'response': response.json()}), 200
