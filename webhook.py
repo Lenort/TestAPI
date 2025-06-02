@@ -1,6 +1,5 @@
 from flask import Flask, request, jsonify
 import datetime
-import os
 
 app = Flask(__name__)
 
@@ -37,8 +36,10 @@ def webhook():
 
 def log(message: str):
     now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    full_message = f"{now} — {message}"
+    print(full_message)  # Вывод в stdout, чтобы видеть в логах Render
     with open(LOG_FILE, 'a', encoding='utf-8') as f:
-        f.write(f"{now} — {message}\n")
+        f.write(full_message + "\n")
 
 
 if __name__ == '__main__':
