@@ -15,20 +15,26 @@ def index():
     return 'Wazzup Webhook Listener is Running'
 
 
-@app.route('/webhook', methods=['POST'])
+@app.route('/webhook', methods=['POST', 'GET'])
 def webhook():
+    if request.method == 'GET':
+        # Возвращаем простой ответ, чтобы не было ошибки 405
+        return jsonify({"status": "ready"}), 200
+
+    # Для POST — проверяем токен
     token = request.headers.get('Authorization', '').replace('Bearer ', '').strip()
 
     if token != EXPECTED_TOKEN:
-        log("❌ Неверный токен: " + token)
+        log(f"❌ Неверный токен: {token}")
         return jsonify({'error': 'Unauthorized'}), 401
 
     try:
         data = request.get_json(force=True)
-    except:
+    except Exception as e:
+        log(f"⚠️ Ошибка при разборе JSON: {e}")
         data = {}
 
-    log("✅ Вебхук принят:\n" + str(data))
+    log(f"✅ Вебхук принят:\n{data}")
     return jsonify({'status': 'ok'}), 200
 
 
@@ -39,12 +45,10 @@ def subscribe():
     Ожидает JSON с параметрами подписки: url и events.
     """
 
-    # Проверка авторизации
     token = request.headers.get('Authorization', '').replace('Bearer ', '').strip()
     if token != EXPECTED_TOKEN:
         return jsonify({'error': 'Unauthorized'}), 401
 
-    # Чтение параметров подписки из тела запроса
     data = request.get_json(silent=True)
     if not data:
         return jsonify({'error': 'Invalid or missing JSON'}), 400
@@ -55,11 +59,10 @@ def subscribe():
     if not url:
         return jsonify({'error': 'URL is required'}), 400
 
-    # Формируем тело PATCH-запроса на API Wazzup
     payload = {
         "webhooksUri": url,
         "subscriptions": [
-            {"events": events}  # Правильный ключ — events
+            {"events": events}
         ]
     }
 
@@ -68,9 +71,8 @@ def subscribe():
         "Content-Type": "application/json"
     }
 
-    # Отправляем PATCH-запрос для подписки
     try:
-        response = requests.patch(WAZZUP_WEBHOOKS_API, json=payload, headers=headers, timeout=30)  # 30 секунд вместо 10
+        response = requests.patch(WAZZUP_WEBHOOKS_API, json=payload, headers=headers, timeout=30)
 
         if response.status_code == 200:
             log(f"✅ Подписка на вебхуки успешна: {response.text}")
