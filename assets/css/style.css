@@ -1,0 +1,78 @@
+body {
+    font-family: Arial, sans-serif;
+    background: #f7f9fc;
+    margin: 0; padding: 20px;
+    display: flex;
+    justify-content: center;
+}
+.lead-form {
+    background: white;
+    padding: 25px 35px;
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    max-width: 450px;
+    width: 100%;
+}
+.lead-form h1 {
+    text-align: center;
+    margin-bottom: 25px;
+    color: #2c3e50;
+}
+.lead-form label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: bold;
+    color: #34495e;
+}
+.lead-form input[type="text"],
+.lead-form input[type="email"],
+.lead-form textarea {
+    width: 100%;
+    padding: 8px 10px;
+    margin-bottom: 15px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+    transition: border-color 0.3s;
+}
+.lead-form input[type="text"]:focus,
+.lead-form input[type="email"]:focus,
+.lead-form textarea:focus {
+    border-color: #2980b9;
+    outline: none;
+}
+.lead-form textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+.lead-form button {
+    width: 100%;
+    background: #2980b9;
+    border: none;
+    padding: 12px;
+    color: white;
+    font-size: 16px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+.lead-form button:hover {
+    background: #1f6391;
+}
+.message {
+    margin: 15px 0;
+    padding: 12px;
+    border-radius: 4px;
+    text-align: center;
+    font-weight: bold;
+}
+.success {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+.error {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
