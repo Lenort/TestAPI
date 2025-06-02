@@ -17,20 +17,18 @@ def index():
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    # Проверка заголовка авторизации
     token = request.headers.get('Authorization', '').replace('Bearer ', '').strip()
+
     if token != EXPECTED_TOKEN:
         log("❌ Неверный токен: " + token)
         return jsonify({'error': 'Unauthorized'}), 401
 
-    # Получение JSON с поддержкой пустого тела
-    data = request.get_json(silent=True)
-    if data is None:
+    try:
+        data = request.get_json(force=True)
+    except:
         data = {}
 
-    # Логирование запроса
     log("✅ Вебхук принят:\n" + str(data))
-
     return jsonify({'status': 'ok'}), 200
 
 
