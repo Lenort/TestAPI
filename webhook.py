@@ -59,7 +59,7 @@ def subscribe():
     payload = {
         "webhooksUri": url,
         "subscriptions": [
-            {"subscriptions": events}
+            {"events": events}  # Правильный ключ — events
         ]
     }
 
