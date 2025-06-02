@@ -8,7 +8,6 @@ app = Flask(__name__)
 EXPECTED_TOKEN = '92a8247c0ce7472a86a5c36f71327d19'
 LOG_FILE = 'wazzup_log.txt'
 WAZZUP_WEBHOOKS_API = 'https://api.wazzup24.com/v3/webhooks'
-WAZZUP_SEND_API = 'https://wazzup24.com/api/messages/send'  # URL из документации для отправки сообщений
 
 
 @app.route('/', methods=['GET'])
@@ -61,7 +60,7 @@ def subscribe():
     payload = {
         "webhooksUri": url,
         "subscriptions": {
-            "messagesAndStatuses": True  # Так подписываемся согласно документации
+            "messagesAndStatuses": True
         }
     }
 
@@ -91,17 +90,14 @@ def send_message():
         return jsonify({'error': 'Unauthorized'}), 401
 
     data = request.get_json(silent=True)
-    if not data:
-        return jsonify({'error': 'Invalid or missing JSON'}), 400
+    if not data or 'phone' not in data or 'text' not in data:
+        return jsonify({'error': 'Missing phone or text'}), 400
 
-    phone = data.get('phone')
-    text = data.get('text')
-
-    if not phone or not text:
-        return jsonify({'error': 'Phone and text are required'}), 400
+    phone = data['phone']
+    text = data['text']
 
     payload = {
-        "phone": phone if phone.startswith('+') else f"+{phone}",
+        "phone": phone,
         "text": text
     }
 
@@ -111,16 +107,16 @@ def send_message():
     }
 
     try:
-        resp = requests.post(WAZZUP_SEND_API, json=payload, headers=headers, timeout=30)
-        if resp.status_code == 200:
-            log(f"✅ Сообщение отправлено на {phone}: {text}")
-            return jsonify({'status': 'message sent', 'response': resp.json()}), 200
+        response = requests.post('https://api.wazzup24.com/v3/messages', json=payload, headers=headers, timeout=30)
+        if response.status_code == 200:
+            log(f"✅ Сообщение отправлено: {payload}")
+            return jsonify({'status': 'sent', 'response': response.json()}), 200
         else:
-            log(f"❌ Ошибка отправки сообщения: {resp.status_code} {resp.text}")
-            return jsonify({'error': 'Send failed', 'details': resp.text}), resp.status_code
+            log(f"❌ Ошибка отправки сообщения: {response.status_code} {response.text}")
+            return jsonify({'error': 'Failed to send message', 'details': response.text}), response.status_code
     except Exception as e:
         log(f"❌ Исключение при отправке сообщения: {e}")
-        return jsonify({'error': 'Exception during send', 'details': str(e)}), 500
+        return jsonify({'error': 'Exception during send_message', 'details': str(e)}), 500
 
 
 def log(message: str):
