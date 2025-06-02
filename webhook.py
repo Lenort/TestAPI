@@ -19,16 +19,14 @@ def index():
 def webhook():
     # Проверка заголовка авторизации
     token = request.headers.get('Authorization', '').replace('Bearer ', '').strip()
-
     if token != EXPECTED_TOKEN:
         log("❌ Неверный токен: " + token)
         return jsonify({'error': 'Unauthorized'}), 401
 
-    try:
-        data = request.get_json(force=True)
-    except Exception as e:
-        log(f"⚠️ Ошибка чтения JSON: {e}")
-        return jsonify({'error': 'Invalid JSON'}), 400
+    # Получение JSON с поддержкой пустого тела
+    data = request.get_json(silent=True)
+    if data is None:
+        data = {}
 
     # Логирование запроса
     log("✅ Вебхук принят:\n" + str(data))
@@ -39,22 +37,22 @@ def webhook():
 @app.route('/subscribe', methods=['POST'])
 def subscribe():
     """
-    Этот endpoint инициирует подписку на вебхуки Wazzup.
-    Ожидает JSON с параметрами подписки (url, events).
+    Endpoint для подписки на вебхуки Wazzup.
+    Ожидает JSON с параметрами подписки: url и events.
     """
 
-    # Проверка авторизации запроса к самому приложению (можно убрать или упростить)
+    # Проверка авторизации
     token = request.headers.get('Authorization', '').replace('Bearer ', '').strip()
     if token != EXPECTED_TOKEN:
         return jsonify({'error': 'Unauthorized'}), 401
 
-    # Читаем параметры подписки из тела запроса
-    try:
-        data = request.get_json(force=True)
-        url = data.get('url')
-        events = data.get('events', ['message'])
-    except Exception as e:
-        return jsonify({'error': f'Invalid JSON: {e}'}), 400
+    # Чтение параметров подписки из тела запроса
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({'error': 'Invalid or missing JSON'}), 400
+
+    url = data.get('url')
+    events = data.get('events', ['message'])
 
     if not url:
         return jsonify({'error': 'URL is required'}), 400
@@ -63,9 +61,7 @@ def subscribe():
     payload = {
         "webhooksUri": url,
         "subscriptions": [
-            {
-                "subscriptions": events
-            }
+            {"subscriptions": events}
         ]
     }
 
@@ -74,7 +70,7 @@ def subscribe():
         "Content-Type": "application/json"
     }
 
-    # Отправляем PATCH запрос для подписки
+    # Отправляем PATCH-запрос для подписки
     try:
         response = requests.patch(WAZZUP_WEBHOOKS_API, json=payload, headers=headers, timeout=10)
         if response.status_code == 200:
