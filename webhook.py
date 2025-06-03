@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 import datetime
 
 app = Flask(__name__)
+
 EXPECTED_TOKEN = '92a8247c0ce7472a86a5c36f71327d19'
 LOG_FILE = 'wazzup_log.txt'
 
@@ -10,6 +11,10 @@ def log(message: str):
     with open(LOG_FILE, 'a', encoding='utf-8') as f:
         f.write(f"{now} — {message}\n")
 
+@app.route('/', methods=['GET'])
+def index():
+    return jsonify({"status": "ready"})
+
 @app.route('/webhook', methods=['POST', 'GET'])
 def webhook():
     if request.method == 'GET':
@@ -17,6 +22,7 @@ def webhook():
 
     user_agent = request.headers.get('User-Agent', '').lower()
 
+    # Проверяем токен, если запрос не от node-fetch (Wazzup)
     if 'node-fetch' not in user_agent:
         token = request.headers.get('Authorization', '').replace('Bearer ', '').strip()
         if token != EXPECTED_TOKEN:
@@ -33,23 +39,18 @@ def webhook():
 
     try:
         messages = data.get("messages", [])
-      for message in messages:
-        chat_id = message.get("chatId") or message.get("chat_id")
-        from_ = message.get("from", "неизвестно")
-        text = message.get("text") or message.get("body", {}).get("text", "(текст не найден)")
+        for message in messages:
+            chat_id = message.get("chatId") or message.get("chat_id")
+            from_ = message.get("from", "неизвестно")
+            text = message.get("text") or message.get("body", {}).get("text", "(текст не найден)")
 
-        print(f"[WAZZUP] CHAT_ID: {chat_id}, FROM: {from_}, TEXT: {text}")
-        log(f"📨 Сообщение от {from_} ({chat_id}): {text}")
-
-
-            if chat_id:
-                print(f"[WAZZUP] Получено сообщение от CHAT_ID: {chat_id}")
-                log(f"📬 Получено сообщение от CHAT_ID: {chat_id}")
-                log(f"📨 Сообщение от {from_} ({chat_id}): {text}")
+            print(f"[WAZZUP] CHAT_ID: {chat_id}, FROM: {from_}, TEXT: {text}")
+            log(f"📨 Сообщение от {from_} ({chat_id}): {text}")
     except Exception as e:
-        log(f"⚠️ Ошибка при извлечении chat_id или данных сообщения: {e}")
+        log(f"⚠️ Ошибка при извлечении chat_id: {e}")
 
     return jsonify({'status': 'ok'}), 200
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=10000)
