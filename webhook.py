@@ -8,7 +8,7 @@ app = Flask(__name__)
 EXPECTED_TOKEN = '92a8247c0ce7472a86a5c36f71327d19'
 LOG_FILE = 'wazzup_log.txt'
 CHANNEL_ID = 'fd738a59-6266-4aff-bdf4-bfa7420375ab'
-ALLOWED_CHAT_ID = '77766961328'  # Только этот номер получает сообщения
+ALLOWED_CHAT_ID = '77766961328'  # Только этот номер получает ответы
 
 # Карта городов
 CITY_MAP = {
@@ -20,7 +20,7 @@ CITY_MAP = {
     "6": "Актобе"
 }
 
-WAZZUP_SEND_API = 'https://api.wazzup24.com/v2/messages/send'
+WAZZUP_SEND_API = 'https://api.wazzup24.com/v3/message'
 
 
 @app.route('/', methods=['GET'])
@@ -61,7 +61,6 @@ def webhook():
 
             log(f"📨 Сообщение от {chat_id}: {text}")
 
-            # Ответ с выбором города
             if text.lower() in ["start", "город", "города"]:
                 city_list = "\n".join([f"{k} — {v}" for k, v in CITY_MAP.items()])
                 send_message(chat_id, f"Выберите город, отправив его номер:\n{city_list}")
@@ -76,18 +75,16 @@ def webhook():
     return jsonify({'status': 'ok'}), 200
 
 
-def send_message(phone: str, text: str) -> bool:
-    if phone.startswith('+'):
-        phone = phone[1:]
-
+def send_message(chat_id: str, text: str) -> bool:
     url = WAZZUP_SEND_API
     headers = {
         'Authorization': f'Bearer {EXPECTED_TOKEN}',
         'Content-Type': 'application/json'
     }
     payload = {
-        "phone": phone,
         "channelId": CHANNEL_ID,
+        "chatType": "whatsapp",
+        "chatId": chat_id,
         "text": text
     }
     try:
@@ -95,7 +92,7 @@ def send_message(phone: str, text: str) -> bool:
         print(f"Отправка сообщения. Код ответа: {response.status_code}")
         print(f"Ответ сервера: {response.text}")
         if response.status_code == 200:
-            log(f"✅ Сообщение отправлено на {phone}: {text}")
+            log(f"✅ Сообщение отправлено на {chat_id}: {text}")
             return True
         else:
             log(f"❌ Ошибка отправки сообщения: {response.status_code} {response.text}")
