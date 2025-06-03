@@ -33,10 +33,14 @@ def webhook():
 
     try:
         messages = data.get("messages", [])
-        for message in messages:
-            chat_id = message.get("chatId") or message.get("chat_id")
-            from_ = message.get("from", "неизвестно")
-            text = message.get("text", "(без текста)")
+      for message in messages:
+        chat_id = message.get("chatId") or message.get("chat_id")
+        from_ = message.get("from", "неизвестно")
+        text = message.get("text") or message.get("body", {}).get("text", "(текст не найден)")
+
+        print(f"[WAZZUP] CHAT_ID: {chat_id}, FROM: {from_}, TEXT: {text}")
+        log(f"📨 Сообщение от {from_} ({chat_id}): {text}")
+
 
             if chat_id:
                 print(f"[WAZZUP] Получено сообщение от CHAT_ID: {chat_id}")
