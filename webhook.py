@@ -1,17 +1,25 @@
-from flask import Flask, request, jsonify
 import datetime
 import requests
+from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
 # Константы
 EXPECTED_TOKEN = '92a8247c0ce7472a86a5c36f71327d19'
 LOG_FILE = 'wazzup_log.txt'
-
-# Твой channelId для номера +77013092718 (отправитель)
 CHANNEL_ID = 'fd738a59-6266-4aff-bdf4-bfa7420375ab'
+ALLOWED_CHAT_ID = '77766961328'  # Только этот номер получает сообщения
 
-WAZZUP_WEBHOOKS_API = 'https://api.wazzup24.com/v3/webhooks'
+# Карта городов
+CITY_MAP = {
+    "1": "Алматы",
+    "2": "Астана",
+    "3": "Шымкент",
+    "4": "Караганда",
+    "5": "Павлодар",
+    "6": "Актобе"
+}
+
 WAZZUP_SEND_API = 'https://api.wazzup24.com/v2/messages/send'
 
 
@@ -41,32 +49,34 @@ def webhook():
 
     log(f"✅ Вебхук принят:\n{data}")
 
-    # Парсим chatId и сообщение
     try:
         messages = data.get("messages", [])
         for message in messages:
             chat_id = message.get("chatId") or message.get("chat_id")
-            from_ = message.get("from")
-            text = message.get("text")
+            text = message.get("text", "").strip()
 
-            if chat_id:
-                print(f"[WAZZUP] Получено сообщение от CHAT_ID: {chat_id}")
-                log(f"📬 Получено сообщение от CHAT_ID: {chat_id}")
+            if chat_id != ALLOWED_CHAT_ID:
+                log(f"🚫 Игнорируем сообщение от {chat_id}")
+                continue
 
-            if from_ and text:
-                log(f"📨 Сообщение от {from_} ({chat_id}): {text}")
+            log(f"📨 Сообщение от {chat_id}: {text}")
 
-                # Пример: автоматический ответ (если надо)
-                # send_message(from_, "Спасибо за ваше сообщение!")
+            # Ответ с выбором города
+            if text.lower() in ["start", "город", "города"]:
+                city_list = "\n".join([f"{k} — {v}" for k, v in CITY_MAP.items()])
+                send_message(chat_id, f"Выберите город, отправив его номер:\n{city_list}")
+            elif text in CITY_MAP:
+                send_message(chat_id, f"Вы выбрали город: {CITY_MAP[text]}")
+            else:
+                send_message(chat_id, "Введите 'город' чтобы начать выбор.")
 
     except Exception as e:
-        log(f"⚠️ Ошибка при извлечении chat_id или сообщений: {e}")
+        log(f"⚠️ Ошибка при обработке сообщений: {e}")
 
     return jsonify({'status': 'ok'}), 200
 
 
 def send_message(phone: str, text: str) -> bool:
-    # Убираем + если есть
     if phone.startswith('+'):
         phone = phone[1:]
 
