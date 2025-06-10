@@ -5,7 +5,7 @@ import requests
 app = Flask(__name__)
 
 LOG_FILE = 'wazzup_log.txt'
-API_BEARER_TOKEN = '92a8247c0ce7472a86a5c36f71327d19'
+API_BEARER_TOKEN = ''
 CHANNEL_ID = 'c1808feb-0822-4203-a6dc-e2a07c705751'
 ALLOWED_CHAT_ID = '77766961328'
 WAZZUP_SEND_API = 'https://api.wazzup24.com/v3/message'
