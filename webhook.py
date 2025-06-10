@@ -3,8 +3,6 @@ import datetime
 
 app = Flask(__name__)
 
-EXPECTED_TOKEN = '92a8247c0ce7472a86a5c36f71327d19'
-
 def log(msg):
     now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     print(f"{now} - {msg}")
@@ -14,13 +12,6 @@ def webhook():
     if request.method == 'GET':
         log('GET /webhook - health check')
         return jsonify({'status': 'ready'}), 200
-
-    # Авторизация по токену
-    auth = request.headers.get('Authorization', '')
-    token = auth.replace('Bearer ', '').strip()
-    if token != EXPECTED_TOKEN:
-        log(f"❌ Unauthorized token: {token}")
-        return jsonify({'error': 'Unauthorized'}), 401
 
     try:
         data = request.get_json(force=True)
