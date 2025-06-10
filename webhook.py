@@ -7,7 +7,7 @@ app = Flask(__name__)
 # Константы
 LOG_FILE = 'wazzup_log.txt'
 EXPECTED_TOKEN = ''  # не используем
-CHANNEL_ID = 'fd738a59-6266-4aff-bdf4-bfa7420375ab'  # твой канал из Wazzup
+CHANNEL_ID = '77780504505'  # твой канал из Wazzup
 ALLOWED_CHAT_ID = '77766961328'  # твой чат айди, только для него отвечаем
 WAZZUP_SEND_API = 'https://api.wazzup24.com/v3/message'
 API_BEARER_TOKEN = '92a8247c0ce7472a86a5c36f71327d19'  # твой API токен
