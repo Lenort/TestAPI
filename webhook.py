@@ -13,7 +13,7 @@ CHANNEL_ID = 'fd738a59-6266-4aff-bdf4-bfa7420375ab'
 ALLOWED_CHAT_ID = '77780504505'
 WAZZUP_SEND_API = 'https://api.wazzup24.com/v3/message'
 WAZZUP_WEBHOOK_API = 'https://api.wazzup24.com/v3/webhooks'
-WEBHOOK_URL = 'https://dashboard.render.com/webhook'
+WEBHOOK_URL = 'https://testapi-qcj8.onrender.com/webhook'
 
 # Города для выбора по цифрам
 CITIES = {
