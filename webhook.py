@@ -6,11 +6,10 @@ app = Flask(__name__)
 
 # Константы
 LOG_FILE = 'wazzup_log.txt'
-EXPECTED_TOKEN = ''  # не используем
-CHANNEL_ID = '77780504505'  # твой канал из Wazzup
-ALLOWED_CHAT_ID = '77766961328'  # твой чат айди, только для него отвечаем
-WAZZUP_SEND_API = 'https://api.wazzup24.com/v3/message'
 API_BEARER_TOKEN = '92a8247c0ce7472a86a5c36f71327d19'  # твой API токен
+CHANNEL_ID = 'fd738a59-6266-4aff-bdf4-bfa7420375ab'    # твой канал из Wazzup
+ALLOWED_CHAT_ID = '77766961328'                         # чат айди, только для него отвечаем
+WAZZUP_SEND_API = 'https://api.wazzup24.com/v3/message'
 
 # Города для выбора по цифрам
 CITIES = {
@@ -78,7 +77,7 @@ def webhook():
             chat_id = message.get("chatId")
             text = message.get("text", "").strip()
 
-            # Отвечаем только для нашего разрешённого чат айди
+            # Отвечаем только для разрешённого chat_id
             if chat_id != ALLOWED_CHAT_ID:
                 log(f"Пропускаем сообщение с chatId={chat_id}")
                 continue
@@ -104,6 +103,7 @@ def webhook():
         log(f"⚠️ Ошибка при обработке сообщения: {e}")
 
     return jsonify({'status': 'ok'}), 200
+
 
 if __name__ == '__main__':
     log("Сервер запущен, ожидаем webhook...")
