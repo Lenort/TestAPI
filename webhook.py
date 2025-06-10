@@ -4,7 +4,6 @@ import requests
 
 app = Flask(__name__)
 
-LOG_FILE = 'wazzup_log.txt'
 API_BEARER_TOKEN = '92a8247c0ce7472a86a5c36f71327d19'  # Вставь свой токен
 CHANNEL_ID = 'c1808feb-0822-4203-a6dc-e2a07c705751'
 ALLOWED_CHAT_ID = '77766961328'
@@ -18,8 +17,9 @@ CITIES = {
     '5': 'Актобе'
 }
 
-last_messages = {}
+# Временное хранение состояния и обработанных сообщений (в памяти)
 user_states = {}
+processed_message_ids = set()
 
 def log(msg):
     now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -75,13 +75,18 @@ def webhook():
             chat_id = message.get("chatId")
             text = message.get("text", "").strip()
             from_me = message.get("fromMe", False)
+            message_id = message.get("id")
 
             log(f"Сообщение от {chat_id}, fromMe={from_me}: {text}")
 
-            # Не отвечаем на свои сообщения, чтобы избежать бесконечного цикла
             if from_me:
                 log("Сообщение от бота, пропускаем")
                 continue
+
+            if message_id in processed_message_ids:
+                log(f"Повторное сообщение (id: {message_id}), пропускаем")
+                continue
+            processed_message_ids.add(message_id)
 
             if chat_id != ALLOWED_CHAT_ID:
                 log(f"Пропускаем сообщение с chatId={chat_id}")
@@ -89,12 +94,6 @@ def webhook():
             if not text:
                 log("Пустой текст, пропускаем")
                 continue
-
-            # Проверка на повтор сообщения
-            if last_messages.get(chat_id) == text:
-                log("Повтор сообщения, пропускаем")
-                continue
-            last_messages[chat_id] = text
 
             user_state = user_states.get(chat_id)
 
@@ -104,8 +103,10 @@ def webhook():
                     user_states[chat_id] = city
                     send_message(chat_id, f"Вы выбрали город: {city}")
                 else:
-                    send_message(chat_id, "Не понял вас. Попробуйте ещё раз.\n" + get_menu_text())
-            
+                    send_message(chat_id, f"Не понял вас.\n{get_menu_text()}")
+            else:
+                # Если уже выбран город — просто молчим
+                log(f"Город уже выбран: {user_state}, игнорируем ввод")
 
     except Exception as e:
         log(f"⚠️ Ошибка при обработке сообщения: {e}")
