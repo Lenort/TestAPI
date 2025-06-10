@@ -1,7 +1,6 @@
-# render.yaml
 services:
   - type: web
-    name: TestAPI
+    name: WazzupWebhook
     env: python
     plan: free
     buildCommand: "pip install -r requirements.txt"
