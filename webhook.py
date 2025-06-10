@@ -1,11 +1,62 @@
 from flask import Flask, request, jsonify
 import datetime
+import requests
 
 app = Flask(__name__)
+
+# Константы
+LOG_FILE = 'wazzup_log.txt'
+EXPECTED_TOKEN = ''  # не используем
+CHANNEL_ID = 'fd738a59-6266-4aff-bdf4-bfa7420375ab'  # твой канал из Wazzup
+ALLOWED_CHAT_ID = '77766961328'  # твой чат айди, только для него отвечаем
+WAZZUP_SEND_API = 'https://api.wazzup24.com/v3/message'
+API_BEARER_TOKEN = '92a8247c0ce7472a86a5c36f71327d19'  # твой API токен
+
+# Города для выбора по цифрам
+CITIES = {
+    '1': 'Алматы',
+    '2': 'Нур-Султан',
+    '3': 'Шымкент',
+    '4': 'Караганда',
+    '5': 'Актобе'
+}
+
+# Хранилище последних сообщений для исключения повторов
+last_messages = {}
 
 def log(msg):
     now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     print(f"{now} - {msg}")
+
+def get_menu_text():
+    lines = ['Выберите город, отправив цифру:']
+    for key, city in CITIES.items():
+        lines.append(f"{key}. {city}")
+    return '\n'.join(lines)
+
+def send_message(chat_id: str, text: str) -> bool:
+    headers = {
+        'Authorization': f'Bearer {API_BEARER_TOKEN}',
+        'Content-Type': 'application/json'
+    }
+    payload = {
+        "channelId": CHANNEL_ID,
+        "chatType": "whatsapp",
+        "chatId": chat_id,
+        "text": text
+    }
+    try:
+        response = requests.post(WAZZUP_SEND_API, json=payload, headers=headers, timeout=30)
+        log(f"Отправка сообщения на {chat_id}. Код ответа: {response.status_code}")
+        if response.status_code in [200, 201]:
+            log(f"✅ Отправлено [{chat_id}]: {text}")
+            return True
+        else:
+            log(f"❌ Ошибка отправки: {response.status_code} {response.text}")
+            return False
+    except Exception as e:
+        log(f"❌ Исключение при отправке: {e}")
+        return False
 
 @app.route('/webhook', methods=['POST', 'GET'])
 def webhook():
@@ -20,7 +71,40 @@ def webhook():
         return jsonify({'error': 'bad json'}), 400
 
     log(f"✅ Webhook received: {data}")
+
+    try:
+        messages = data.get("messages", [])
+        for message in messages:
+            chat_id = message.get("chatId")
+            text = message.get("text", "").strip()
+
+            # Отвечаем только для нашего разрешённого чат айди
+            if chat_id != ALLOWED_CHAT_ID:
+                log(f"Пропускаем сообщение с chatId={chat_id}")
+                continue
+            if not text:
+                log("Пустой текст, пропускаем")
+                continue
+
+            # Проверка на повтор сообщения
+            if last_messages.get(chat_id) == text:
+                log("Повтор сообщения, пропускаем")
+                continue
+            last_messages[chat_id] = text
+
+            log(f"Новое сообщение от {chat_id}: {text}")
+
+            # Логика ответа
+            if text in CITIES:
+                send_message(chat_id, f"Вы выбрали город: {CITIES[text]}")
+            else:
+                send_message(chat_id, "Не понял вас. Попробуйте ещё раз.\n" + get_menu_text())
+
+    except Exception as e:
+        log(f"⚠️ Ошибка при обработке сообщения: {e}")
+
     return jsonify({'status': 'ok'}), 200
 
 if __name__ == '__main__':
+    log("Сервер запущен, ожидаем webhook...")
     app.run(host='0.0.0.0', port=10000)
