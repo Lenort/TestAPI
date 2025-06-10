@@ -1,28 +1,34 @@
 from flask import Flask, request, jsonify
+import datetime
 
-app = Flask(__name__)  # ← сначала создаём Flask-приложение
+app = Flask(__name__)
+
+EXPECTED_TOKEN = '92a8247c0ce7472a86a5c36f71327d19'
+
+def log(msg):
+    now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    print(f"{now} - {msg}")
 
 @app.route('/webhook', methods=['POST', 'GET'])
 def webhook():
     if request.method == 'GET':
-        print('GET /webhook - health check')
+        log('GET /webhook - health check')
         return jsonify({'status': 'ready'}), 200
 
-    # Временно отключена проверка токена
-    # auth = request.headers.get('Authorization', '')
-    # token = auth.replace('Bearer ', '').strip()
-    # if token != EXPECTED_TOKEN:
-    #     print(f"Unauthorized token: {token}")
-    #     return jsonify({'error': 'Unauthorized'}), 401
+    # Авторизация по токену
+    auth = request.headers.get('Authorization', '')
+    token = auth.replace('Bearer ', '').strip()
+    if token != EXPECTED_TOKEN:
+        log(f"❌ Unauthorized token: {token}")
+        return jsonify({'error': 'Unauthorized'}), 401
 
     try:
         data = request.get_json(force=True)
     except Exception as e:
-        print(f"❌ Bad JSON: {e}")
+        log(f"⚠️ Bad JSON: {e}")
         return jsonify({'error': 'bad json'}), 400
 
-    print(f"✅ Webhook received: {data}")
-
+    log(f"✅ Webhook received: {data}")
     return jsonify({'status': 'ok'}), 200
 
 if __name__ == '__main__':
