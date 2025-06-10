@@ -4,14 +4,12 @@ import requests
 
 app = Flask(__name__)
 
-# Константы
 LOG_FILE = 'wazzup_log.txt'
-API_BEARER_TOKEN = '92a8247c0ce7472a86a5c36f71327d19'  # твой API токен
-CHANNEL_ID = 'c1808feb-0822-4203-a6dc-e2a07c705751'    # твой канал из Wazzup
-ALLOWED_CHAT_ID = '77766961328'                         # чат айди, только для него отвечаем
+API_BEARER_TOKEN = '92a8247c0ce7472a86a5c36f71327d19'
+CHANNEL_ID = 'c1808feb-0822-4203-a6dc-e2a07c705751'
+ALLOWED_CHAT_ID = '77766961328'
 WAZZUP_SEND_API = 'https://api.wazzup24.com/v3/message'
 
-# Города для выбора по цифрам
 CITIES = {
     '1': 'Алматы',
     '2': 'Нур-Султан',
@@ -20,8 +18,8 @@ CITIES = {
     '5': 'Актобе'
 }
 
-# Хранилище последних сообщений для исключения повторов
 last_messages = {}
+user_states = {}  # Состояния пользователей: None или выбран город
 
 def log(msg):
     now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -77,7 +75,6 @@ def webhook():
             chat_id = message.get("chatId")
             text = message.get("text", "").strip()
 
-            # Отвечаем только для разрешённого chat_id
             if chat_id != ALLOWED_CHAT_ID:
                 log(f"Пропускаем сообщение с chatId={chat_id}")
                 continue
@@ -93,17 +90,31 @@ def webhook():
 
             log(f"Новое сообщение от {chat_id}: {text}")
 
-            # Логика ответа
-            if text in CITIES:
-                send_message(chat_id, f"Вы выбрали город: {CITIES[text]}")
+            # Получаем состояние пользователя (выбран город или нет)
+            user_state = user_states.get(chat_id)
+
+            if user_state is None:
+                # Пользователь ещё не выбрал город
+                if text in CITIES:
+                    city = CITIES[text]
+                    user_states[chat_id] = city  # Сохраняем выбор
+                    send_message(chat_id, f"Вы выбрали город: {city}")
+                else:
+                    # Отправляем меню выбора
+                    send_message(chat_id, "Не понял вас. Попробуйте ещё раз.\n" + get_menu_text())
             else:
-                send_message(chat_id, "Не понял вас. Попробуйте ещё раз.\n" + get_menu_text())
+                # Город уже выбран, можно ответить по-другому или игнорировать
+                send_message(chat_id, f"Вы уже выбрали город: {user_state}. Если хотите выбрать снова, отправьте 'сброс'.")
+
+                # Если пользователь присылает 'сброс' - сбрасываем выбор
+                if text.lower() == 'сброс':
+                    user_states[chat_id] = None
+                    send_message(chat_id, "Выбор города сброшен.\n" + get_menu_text())
 
     except Exception as e:
         log(f"⚠️ Ошибка при обработке сообщения: {e}")
 
     return jsonify({'status': 'ok'}), 200
-
 
 if __name__ == '__main__':
     log("Сервер запущен, ожидаем webhook...")
