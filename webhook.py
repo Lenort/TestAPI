@@ -7,10 +7,10 @@ from flask import Flask, request, jsonify
 app = Flask(__name__)
 
 # Константы
-EXPECTED_TOKEN = '92a8247c0ce7472a86a5c36f71327d19'
+EXPECTED_TOKEN = '92a8247c0ce7472a86a5c36f71327d19'  # токен оставлен без изменений, как ты указал
 LOG_FILE = 'wazzup_log.txt'
 CHANNEL_ID = 'fd738a59-6266-4aff-bdf4-bfa7420375ab'
-ALLOWED_CHAT_ID = '77766961328'
+ALLOWED_CHAT_ID = '77780504505'  # новый номер фирмы
 WAZZUP_SEND_API = 'https://api.wazzup24.com/v3/message'
 
 # Города для выбора по цифрам
