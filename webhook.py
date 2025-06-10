@@ -4,7 +4,7 @@ import requests
 
 app = Flask(__name__)
 
-API_BEARER_TOKEN = '92a8247c0ce7472a86a5c36f71327d19'  # Вставь свой токен
+API_BEARER_TOKEN = '92a8247c0ce7472a86a5c36f71327d19'
 CHANNEL_ID = 'c1808feb-0822-4203-a6dc-e2a07c705751'
 ALLOWED_CHAT_ID = '77766961328'
 WAZZUP_SEND_API = 'https://api.wazzup24.com/v3/message'
@@ -17,7 +17,6 @@ CITIES = {
     '5': 'Актобе'
 }
 
-# Временное хранение состояния и обработанных сообщений (в памяти)
 user_states = {}
 processed_message_ids = set()
 
@@ -75,12 +74,16 @@ def webhook():
             chat_id = message.get("chatId")
             text = message.get("text", "").strip()
             from_me = message.get("fromMe", False)
-            message_id = message.get("id")
+            message_id = message.get("messageId")  # <--- ВАЖНО: правильное имя поля
 
             log(f"Сообщение от {chat_id}, fromMe={from_me}: {text}")
 
             if from_me:
                 log("Сообщение от бота, пропускаем")
+                continue
+
+            if not message_id:
+                log("⚠️ Нет messageId, пропускаем для безопасности")
                 continue
 
             if message_id in processed_message_ids:
@@ -105,7 +108,6 @@ def webhook():
                 else:
                     send_message(chat_id, f"Не понял вас.\n{get_menu_text()}")
             else:
-                # Если уже выбран город — просто молчим
                 log(f"Город уже выбран: {user_state}, игнорируем ввод")
 
     except Exception as e:
