@@ -3,13 +3,11 @@ from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
-LOG_FILE = 'wazzup_log.txt'
 EXPECTED_TOKEN = '92a8247c0ce7472a86a5c36f71327d19'
 
 def log(msg):
     now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    with open(LOG_FILE, 'a', encoding='utf-8') as f:
-        f.write(f"{now} - {msg}\n")
+    print(f"{now} - {msg}")
 
 @app.route('/webhook', methods=['POST', 'GET'])
 def webhook():
