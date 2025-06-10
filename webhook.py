@@ -5,7 +5,7 @@ import requests
 app = Flask(__name__)
 
 LOG_FILE = 'wazzup_log.txt'
-API_BEARER_TOKEN = '92a8247c0ce7472a86a5c36f71327d19'
+API_BEARER_TOKEN = '92a8247c0ce7472a86a5c36f71327d19'  # Вставь свой токен
 CHANNEL_ID = 'c1808feb-0822-4203-a6dc-e2a07c705751'
 ALLOWED_CHAT_ID = '77766961328'
 WAZZUP_SEND_API = 'https://api.wazzup24.com/v3/message'
@@ -78,6 +78,7 @@ def webhook():
 
             log(f"Сообщение от {chat_id}, fromMe={from_me}: {text}")
 
+            # Не отвечаем на свои сообщения, чтобы избежать бесконечного цикла
             if from_me:
                 log("Сообщение от бота, пропускаем")
                 continue
@@ -89,6 +90,7 @@ def webhook():
                 log("Пустой текст, пропускаем")
                 continue
 
+            # Проверка на повтор сообщения
             if last_messages.get(chat_id) == text:
                 log("Повтор сообщения, пропускаем")
                 continue
@@ -103,12 +105,7 @@ def webhook():
                     send_message(chat_id, f"Вы выбрали город: {city}")
                 else:
                     send_message(chat_id, "Не понял вас. Попробуйте ещё раз.\n" + get_menu_text())
-            else:
-                if text.lower() == 'сброс':
-                    user_states[chat_id] = None
-                    send_message(chat_id, get_menu_text())
-                else:
-                    log(f"Пользователь уже выбрал город {user_state}, сообщение проигнорировано: {text}")
+            
 
     except Exception as e:
         log(f"⚠️ Ошибка при обработке сообщения: {e}")
