@@ -110,7 +110,7 @@ def webhook():
                     user_states[chat_id] = None
                     send_message(chat_id, "Выбор города сброшен.\n" + get_menu_text())
                 else:
-                    send_message(chat_id, f"Вы уже выбрали город: {user_state}. Если хотите выбрать снова, отправьте 'сброс'.")
+                    log(f"Пользователь уже выбрал город {user_state}, игнорируем сообщение: {text}")
 
     except Exception as e:
         log(f"⚠️ Ошибка при обработке сообщения: {e}")
