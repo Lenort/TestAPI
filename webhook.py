@@ -4,7 +4,7 @@ import requests
 
 app = Flask(__name__)
 
-API_BEARER_TOKEN = '92a8247c0ce7472a86a5c36f71327d19'
+API_BEARER_TOKEN = '92a8247c0ce7472a86a5c36f71327d19'  # Вставь свой токен
 CHANNEL_ID = 'c1808feb-0822-4203-a6dc-e2a07c705751'
 ALLOWED_CHAT_ID = '77766961328'
 WAZZUP_SEND_API = 'https://api.wazzup24.com/v3/message'
@@ -17,18 +17,22 @@ CITIES = {
     '5': 'Актобе'
 }
 
+# Временное хранение состояний пользователей и обработанных сообщений
 user_states = {}
 processed_message_ids = set()
+
 
 def log(msg):
     now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     print(f"{now} - {msg}")
+
 
 def get_menu_text():
     lines = ['Выберите город, отправив цифру:']
     for key, city in CITIES.items():
         lines.append(f"{key}. {city}")
     return '\n'.join(lines)
+
 
 def send_message(chat_id: str, text: str) -> bool:
     headers = {
@@ -54,6 +58,7 @@ def send_message(chat_id: str, text: str) -> bool:
         log(f"❌ Исключение при отправке: {e}")
         return False
 
+
 @app.route('/webhook', methods=['POST', 'GET'])
 def webhook():
     if request.method == 'GET':
@@ -74,30 +79,33 @@ def webhook():
             chat_id = message.get("chatId")
             text = message.get("text", "").strip()
             from_me = message.get("fromMe", False)
-            message_id = message.get("messageId")  # <--- ВАЖНО: правильное имя поля
+            is_echo = message.get("isEcho", False)
+            message_id = message.get("messageId")
 
-            log(f"Сообщение от {chat_id}, fromMe={from_me}: {text}")
+            log(f"Сообщение от {chat_id}, fromMe={from_me}, isEcho={is_echo}: {text}")
 
-            if from_me:
-                log("Сообщение от бота, пропускаем")
+            # Пропускаем отправленные ботом или эхо-сообщения
+            if from_me or is_echo:
+                log(f"Эхо или сообщение от бота (fromMe={from_me}, isEcho={is_echo}), пропускаем")
                 continue
 
-            if not message_id:
-                log("⚠️ Нет messageId, пропускаем для безопасности")
+            # Пропускаем сообщения от неразрешённых пользователей
+            if chat_id != ALLOWED_CHAT_ID:
+                log(f"Пропускаем сообщение с chatId={chat_id}")
                 continue
 
+            # Пропускаем пустые сообщения
+            if not text:
+                log("Пустой текст, пропускаем")
+                continue
+
+            # Пропускаем уже обработанные сообщения
             if message_id in processed_message_ids:
                 log(f"Повторное сообщение (id: {message_id}), пропускаем")
                 continue
             processed_message_ids.add(message_id)
 
-            if chat_id != ALLOWED_CHAT_ID:
-                log(f"Пропускаем сообщение с chatId={chat_id}")
-                continue
-            if not text:
-                log("Пустой текст, пропускаем")
-                continue
-
+            # Обработка логики выбора города
             user_state = user_states.get(chat_id)
 
             if user_state is None:
@@ -114,6 +122,7 @@ def webhook():
         log(f"⚠️ Ошибка при обработке сообщения: {e}")
 
     return jsonify({'status': 'ok'}), 200
+
 
 if __name__ == '__main__':
     log("Сервер запущен, ожидаем webhook...")
