@@ -1,3 +1,5 @@
+# webhook.py
+
 import datetime
 import requests
 from flask import Flask, request, jsonify
@@ -122,7 +124,8 @@ def log(message: str):
     with open(LOG_FILE, 'a', encoding='utf-8') as f:
         f.write(f"{now} — {message}\n")
 
+
 if __name__ == '__main__':
-    # При старте показываем меню в логе и отправляем его самому себе
+    # При старте записываем меню в лог
     log(get_menu_text())
     app.run(host='0.0.0.0', port=10000)
