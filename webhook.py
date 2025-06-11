@@ -8,6 +8,7 @@ app = Flask(__name__)
 API_BEARER_TOKEN = '92a8247c0ce7472a86a5c36f71327d19'
 CHANNEL_ID        = 'c1808feb-0822-4203-a6dc-e2a07c705751'
 ALLOWED_CHAT_ID   = '77766961328'
+ADMIN_CHAT_ID     = '77778053727'   # сюда будут приходить уведомления
 WAZZUP_SEND_API   = 'https://api.wazzup24.com/v3/message'
 
 # === Настройки Bitrix24 ===
@@ -44,7 +45,7 @@ RESPONSIBLES = {
 }
 
 # Хранилище состояний и обработанных ID
-user_states = {}               
+user_states = {}
 processed_message_ids = set()
 
 def log(msg):
@@ -52,6 +53,7 @@ def log(msg):
     print(f"{ts} - {msg}")
 
 def send_message(chat_id: str, text: str) -> bool:
+    """Отправляет текст в указанный чат Wazzup."""
     headers = {
         'Authorization': f'Bearer {API_BEARER_TOKEN}',
         'Content-Type':  'application/json'
@@ -64,13 +66,27 @@ def send_message(chat_id: str, text: str) -> bool:
     }
     try:
         r = requests.post(WAZZUP_SEND_API, json=payload, headers=headers, timeout=30)
-        log(f"Отправка в Wazzup: {r.status_code}")
+        log(f"Отправка в Wazzup ({chat_id}): {r.status_code}")
         return r.status_code in (200, 201)
     except Exception as e:
-        log(f"Ошибка отправки в Wazzup: {e}")
+        log(f"Ошибка отправки в Wazzup ({chat_id}): {e}")
         return False
 
+def notify_admin(fio, phone, city, event_type):
+    """Уведомление админа о новой задаче."""
+    now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    text = (
+        f"*Новая заявка* в CRM Bitrix24\n"
+        f"Время: {now}\n"
+        f"От: {fio} ({phone})\n"
+        f"Город: {city}\n"
+        f"Цель: {event_type}\n"
+        f"Лид ожидает обработки в Bitrix24."
+    )
+    send_message(ADMIN_CHAT_ID, text)
+
 def create_bitrix_lead(city, event_type, fio, phone, chat_id):
+    """Создаёт лид в Bitrix и уведомляет админа."""
     # разбиваем ФИО
     parts = fio.split(' ')
     last, first, second = (parts + ["", "", ""])[:3]
@@ -104,8 +120,10 @@ def create_bitrix_lead(city, event_type, fio, phone, chat_id):
     try:
         resp = requests.post(BITRIX_WEBHOOK_URL, json=data, timeout=30)
         log(f"Создание лида в Bitrix: {resp.status_code} / {resp.text}")
-        if resp.status_code != 200 or not resp.json().get("result"):
-            # оповестим пользователя, если лид не создался
+        if resp.status_code == 200 and resp.json().get("result"):
+            # уведомляем админа
+            notify_admin(fio, phone, city, event_type)
+        else:
             send_message(chat_id,
                 "⚠️ Возникла проблема при сохранении заявки в CRM. "
                 "Наш менеджер свяжется с вами в ближайшее время.")
@@ -133,7 +151,7 @@ def webhook():
         return jsonify({'status': 'ready'}), 200
 
     data = request.get_json(force=True)
-    log(f"Webhook recibido: {data}")
+    log(f"Webhook received: {data}")
 
     for msg in data.get("messages", []):
         mid     = msg.get("messageId")
@@ -145,7 +163,7 @@ def webhook():
 
         log(f"Msg {mid} от {chat_id}: «{text}» (echo={is_echo}, fromMe={is_me})")
 
-        # Фильтрация: пустое, эхо, своё и неподходящий chatId или повторы
+        # Фильтрация: эхо, пустое, чужой или повтор
         if is_me or is_echo or not text or mid in processed_message_ids or chat_id != ALLOWED_CHAT_ID:
             log("Пропускаем это сообщение")
             processed_message_ids.add(mid)
@@ -193,7 +211,7 @@ def webhook():
             else:
                 send_message(chat_id, "Неверный выбор, повторите:\n" + get_directions_menu())
 
-        # На всякий случай — сброс
+        # Сброс на начало
         else:
             user_states.pop(chat_id, None)
             send_message(chat_id, "Давайте начнём сначала.\n" + get_menu_text())
