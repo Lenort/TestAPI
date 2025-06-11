@@ -4,12 +4,11 @@ import requests
 
 app = Flask(__name__)
 
-API_BEARER_TOKEN = '92a8247c0ce7472a86a5c36f71327d19'  # Вставь свой токен
+API_BEARER_TOKEN = '92a8247c0ce7472a86a5c36f71327d19'
 CHANNEL_ID = 'c1808feb-0822-4203-a6dc-e2a07c705751'
 ALLOWED_CHAT_ID = '77766961328'
 WAZZUP_SEND_API = 'https://api.wazzup24.com/v3/message'
 
-# Города для выбора по цифрам
 CITIES = {
     '1': 'Алматы',
     '2': 'Нур-Султан',
@@ -18,7 +17,6 @@ CITIES = {
     '5': 'Актобе'
 }
 
-# Направления для строительного магазина (будут 10 пунктов)
 DIRECTIONS = {
     '1': 'Кирпич и Блоки',
     '2': 'Цемент и Растворы',
@@ -32,33 +30,21 @@ DIRECTIONS = {
     '10': 'Отделочные материалы'
 }
 
-# Состояния пользователя
-user_states = {}  # {chat_id: {'city': str, 'step': 'city'|'menu'|'direction'|...}}
+user_states = {}
 processed_message_ids = set()
-
 
 def log(msg):
     now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     print(f"{now} - {msg}")
 
-
 def get_menu_text():
-    lines = ['Выберите город, отправив цифру:']
-    for key, city in CITIES.items():
-        lines.append(f"{key}. {city}")
-    return '\n'.join(lines)
-
+    return '\n'.join([f"{k}. {v}" for k, v in CITIES.items()])
 
 def get_continue_menu():
     return 'Желаете продолжить?\n1. Выбор направлений\n2. Заказать звонок'
 
-
 def get_directions_menu():
-    lines = ['Выберите направление, отправив цифру:']
-    for key, name in DIRECTIONS.items():
-        lines.append(f"{key}. {name}")
-    return '\n'.join(lines)
-
+    return '\n'.join([f"{k}. {v}" for k, v in DIRECTIONS.items()])
 
 def send_message(chat_id: str, text: str) -> bool:
     headers = {
@@ -98,73 +84,55 @@ def webhook():
 
     log(f"✅ Webhook received: {data}")
 
-    try:
-        messages = data.get("messages", [])
-        for message in messages:
-            chat_id = message.get("chatId")
-            text = message.get("text", "").strip()
-            from_me = message.get("fromMe", False)
-            is_echo = message.get("isEcho", False)
-            message_id = message.get("messageId")
+    messages = data.get("messages", [])
+    for message in messages:
+        chat_id = message.get("chatId")
+        text = message.get("text", "").strip()
+        from_me = message.get("fromMe", False)
+        is_echo = message.get("isEcho", False)
+        message_id = message.get("messageId")
 
-            log(f"Сообщение от {chat_id}, fromMe={from_me}, isEcho={is_echo}: {text}")
+        log(f"Сообщение от {chat_id}, fromMe={from_me}, isEcho={is_echo}: {text}")
 
-            if from_me or is_echo:
-                log("Эхо или сообщение от бота, пропускаем")
-                continue
-            if message_id in processed_message_ids:
-                log(f"Повторное сообщение (id: {message_id}), пропускаем")
-                continue
-            processed_message_ids.add(message_id)
-            if chat_id != ALLOWED_CHAT_ID or not text:
-                log(f"Пропускаем сообщение с chatId={chat_id} или пустой текст")
-                continue
+        if from_me or is_echo or not text:
+            log("Эхо, пустое или сообщение от бота, пропускаем")
+            continue
+        if message_id in processed_message_ids:
+            log(f"Повторное сообщение (id: {message_id}), пропускаем")
+            continue
+        processed_message_ids.add(message_id)
 
-            # Инициализируем состояние, если новый пользователь
-            if chat_id not in user_states:
-                user_states[chat_id] = {'city': None, 'step': 'city'}
+        state = user_states.get(chat_id, {'step': 'city'})
 
-            state = user_states[chat_id]
-
-            # Шаг выбора города
-            if state['step'] == 'city':
-                if text in CITIES:
-                    city = CITIES[text]
-                    state['city'] = city
-                    state['step'] = 'menu'
-                    send_message(chat_id, f"Вы выбрали город: {city}")
-                    # --- Начало области доработки: меню продолжения ---
-                    send_message(chat_id, get_continue_menu())  # TODO: Обработать выбор 1/2
-                    # --- Конец области доработки ---
-                else:
-                    send_message(chat_id, f"Не понял вас.\n{get_menu_text()}")
-
-            # Шаг меню продолжения и далее — будут допиливаться позже
-            elif state['step'] == 'menu':
-                # TODO: Обработать выбор 1 (directions) и 2 (callback)
-                # Если пользователь выбрал '2' (заказать звонок):
-                #   send_message(chat_id, "В ближайшее время региональный менеджер с вами свяжется.")
-                #   state['step'] = 'done'
-                # Если '1' — перейти к выбору направления:
-                #   state['step'] = 'direction'
-                #   send_message(chat_id, get_directions_menu())
-                pass
-
-            # Шаг выбора направления
-            elif state['step'] == 'direction':
-                # TODO: Обработать выбор направления (10 пунктов)
-                # После выбора отправить "Спасибо за обратную связь" и state['step']='done'
-                pass
-
-            # Шаг завершён
-            elif state['step'] == 'done':
-                log("Диалог завершён, игнорируем ввод пользователя")
-
-    except Exception as e:
-        log(f"⚠️ Ошибка при обработке сообщения: {e}")
+        if state['step'] == 'city':
+            if text in CITIES:
+                city = CITIES[text]
+                user_states[chat_id] = {'city': city, 'step': 'menu'}
+                send_message(chat_id, f"Вы выбрали город: {city}")
+                send_message(chat_id, get_continue_menu())
+            else:
+                send_message(chat_id, "Не понял вас.\n" + get_menu_text())
+        elif state['step'] == 'menu':
+            if text == '1':
+                user_states[chat_id]['step'] = 'direction'
+                send_message(chat_id, get_directions_menu())
+            elif text == '2':
+                user_states[chat_id]['step'] = 'call'
+                send_message(chat_id, "Наш специалист скоро свяжется с вами.")
+            else:
+                send_message(chat_id, "Пожалуйста, выберите:\n1. Выбор направлений\n2. Заказать звонок")
+        elif state['step'] == 'direction':
+            if text in DIRECTIONS:
+                direction = DIRECTIONS[text]
+                send_message(chat_id, f"Вы выбрали: {direction}\nСпасибо за выбор! Чем ещё можем помочь?")
+                user_states[chat_id]['step'] = 'menu'  # вернуться в меню
+                send_message(chat_id, get_continue_menu())
+            else:
+                send_message(chat_id, "Неверный выбор. Повторите:\n" + get_directions_menu())
+        elif state['step'] == 'call':
+            send_message(chat_id, "Ожидайте звонка от нашего специалиста.")
+        else:
+            user_states[chat_id] = {'step': 'city'}
+            send_message(chat_id, "Начнём сначала.\n" + get_menu_text())
 
     return jsonify({'status': 'ok'}), 200
-
-if __name__ == '__main__':
-    log("Сервер запущен, ожидаем webhook...")
-    app.run(host='0.0.0.0', port=10000)
