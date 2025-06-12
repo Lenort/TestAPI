@@ -7,7 +7,7 @@ app = Flask(__name__)
 # === Настройки Wazzup ===
 API_BEARER_TOKEN = '92a8247c0ce7472a86a5c36f71327d19'
 CHANNEL_ID        = 'c1808feb-0822-4203-a6dc-e2a07c705751'
-ALLOWED_CHAT_ID   = '77766961328'
+# Убрали ограничение ALLOWED_CHAT_ID — теперь бот отвечает всем
 ADMIN_CHAT_ID     = '77778053727'   # сюда будут приходить уведомления
 WAZZUP_SEND_API   = 'https://api.wazzup24.com/v3/message'
 
@@ -124,8 +124,7 @@ def create_bitrix_lead(city, event_type, fio, phone, chat_id):
             notify_admin(fio, phone, city, event_type)
         else:
             send_message(chat_id,
-                "⚠️ При сохранении заявки в CRM возникла проблема. "
-                "Менеджер свяжется с вами в ближайшее время.")
+                "⚠️ При сохранении заявки в CRM возникла проблема. Менеджер свяжется с вами в ближайшее время.")
     except Exception as e:
         log(f"Bitrix API error: {e}")
         send_message(chat_id,
@@ -134,8 +133,7 @@ def create_bitrix_lead(city, event_type, fio, phone, chat_id):
 def get_menu_text():
     return (
         "👋 Добро пожаловать в *Optimus KZ*! 👋\n\n"
-        "Для начала выберите ваш регион, чтобы мы могли подобрать "
-        "регионального менеджера:\n" +
+        "Для начала выберите ваш регион, чтобы мы могли подобрать регионального менеджера:\n" +
         "\n".join(f"{k}. {v}" for k, v in CITIES.items())
     )
 
@@ -171,7 +169,9 @@ def webhook():
 
         log(f"Msg {mid} from {chat_id}: «{text}» (echo={is_echo}, fromMe={is_me})")
 
-        if is_me or is_echo or not text or mid in processed_message_ids or chat_id != ALLOWED_CHAT_ID:
+        # Фильтрация: эхо, пустое, повторы
+        # Убрали проверку chat_id != ALLOWED_CHAT_ID
+        if is_me or is_echo or not text or mid in processed_message_ids:
             processed_message_ids.add(mid)
             continue
 
@@ -196,7 +196,7 @@ def webhook():
             elif text == "2":
                 send_message(chat_id,
                     "📞 Ожидайте звонок нашего регионального менеджера в течение 15 минут.\n"
-                    "Спасибо за обращение в *Optimus KZ*!")
+                    "Спасибо за обращение в *Optimus KZ*!)")
                 create_bitrix_lead(city, "Callback", fio, chat_id, chat_id)
                 user_states.pop(chat_id, None)
             else:
@@ -209,8 +209,9 @@ def webhook():
                 direction = DIRECTIONS[text]
                 send_message(chat_id,
                     f"🎯 Вы выбрали: *{direction}* в городе *{city}*.\n"
-                    "Наш менеджер подготовит для вас подборку и свяжется "
-                    "для уточнения деталей. Спасибо, что выбрали *Optimus KZ*!")
+                    "Наш менеджер подготовит для вас подборку и свяжется для уточнения деталей.\n"
+                    "Спасибо, что выбрали *Optimus KZ*!"
+                )
                 create_bitrix_lead(city, f"Direction: {direction}", fio, chat_id, chat_id)
                 user_states.pop(chat_id, None)
             else:
