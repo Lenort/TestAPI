@@ -108,11 +108,12 @@ def create_bitrix_lead(city, event_type, fio, phone, chat_id):
         r = requests.post(BITRIX_WEBHOOK_URL, json=data, timeout=30)
         log(f"Bitrix lead: {r.status_code} / {r.text}")
         if r.status_code == 200 and r.json().get("result"):
-            notify_admin(fio, phone, city, event_type)
+            # Если лид успешно создан, сохраняем в базу
             db.session.add(Lead(chat_id=chat_id, fio=fio, phone=phone, city=city, direction=event_type))
             db.session.commit()
+            notify_admin(fio, phone, city, event_type)
         else:
-            send_message(chat_id, "⚠️ Проблема при сохранении заявки. Менеджер свяжется позже.")
+            send_message(chat_id, "⚠️ Проблема при сохранении заявки в CRM. Менеджер свяжется позже.")
     except Exception as e:
         log(f"Bitrix API error: {e}")
         send_message(chat_id, "⚠️ Не удалось соединиться с CRM. Попробуйте позже.")
@@ -141,9 +142,11 @@ def webhook():
         chat_id = msg.get("chatId")
         text = msg.get("text", "").strip()
         fio = msg.get("contact", {}).get("name", "Неизвестный")
+        phone = msg.get("contact", {}).get("phone") or chat_id  # Берём телефон из contact, иначе chat_id
         is_me = msg.get("fromMe", False)
         is_echo = msg.get("isEcho", False)
 
+        # Фильтры — пропускаем свои, эхо и уже обработанные сообщения
         if is_me or is_echo or not text or mid in processed_message_ids or chat_id != ALLOWED_CHAT_ID:
             processed_message_ids.add(mid)
             continue
@@ -165,7 +168,7 @@ def webhook():
                 send_message(chat_id, get_directions_menu())
             elif text == "2":
                 send_message(chat_id, "📞 Ожидайте звонка менеджера.")
-                create_bitrix_lead(city, "Callback", fio, chat_id, chat_id)
+                create_bitrix_lead(city, "Callback", fio, phone, chat_id)
                 user_states.pop(chat_id, None)
             else:
                 send_message(chat_id, get_continue_menu())
@@ -176,7 +179,7 @@ def webhook():
                 direction = DIRECTIONS[text]
                 send_message(chat_id,
                     f"🎯 Вы выбрали: *{direction}* в городе *{city}*. Менеджер свяжется с вами.")
-                create_bitrix_lead(city, direction, fio, chat_id, chat_id)
+                create_bitrix_lead(city, direction, fio, phone, chat_id)
                 user_states.pop(chat_id, None)
             else:
                 send_message(chat_id, get_directions_menu())
