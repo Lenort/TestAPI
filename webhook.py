@@ -10,7 +10,7 @@ app = Flask(__name__)
 # Читаем URL из переменной окружения или используем хардкод
 DB_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql://postgres:Asd987321aw@aws-0-eu-central-1.pooler.supabase.com:6543/postgres"
+    "postgresql://postgres:[Asd987321aw]@db.lpmsmxksppilwtvjtmqu.supabase.co:5432/postgres"
 )
 conn = psycopg2.connect(DB_URL)
 conn.autocommit = True
