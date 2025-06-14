@@ -7,17 +7,14 @@ import psycopg2
 app = Flask(__name__)
 
 # === Настройки базы данных (Supabase) ===
-# Если переменная окружения DATABASE_URL не задана, хардкодим URL
-# Используем IPv4 pooler для Supabase (Session Pooler)
+# Читаем URL из переменной окружения или используем хардкод
 DB_URL = os.getenv(
     "DATABASE_URL",
     "postgresql://postgres:Asd987321aw@aws-0-eu-central-1.pooler.supabase.com:6543/postgres"
-)"DATABASE_URL",
-    "postgresql://postgres:YOUR_PASSWORD@db.lpmsmxksppilwtvjtmqu.supabase.co:5432/postgres"
 )
 conn = psycopg2.connect(DB_URL)
 conn.autocommit = True
-cursor = conn.cursor()
+cursor = conn.cursor()()
 
 # === Настройки Wazzup ===
 API_BEARER_TOKEN = '92a8247c0ce7472a86a5c36f71327d19'
