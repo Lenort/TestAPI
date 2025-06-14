@@ -1,46 +1,36 @@
 from flask import Flask, request, jsonify
-import os
+from flask_sqlalchemy import SQLAlchemy
 import datetime
 import requests
-from sqlalchemy import create_engine, Column, String, DateTime
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
-
-# === Настройки окружения ===
-API_BEARER_TOKEN  = os.getenv('API_BEARER_TOKEN')
-CHANNEL_ID         = os.getenv('CHANNEL_ID')
-ALLOWED_CHAT_ID    = os.getenv('ALLOWED_CHAT_ID')
-ADMIN_CHAT_ID      = os.getenv('ADMIN_CHAT_ID')
-WAZZUP_SEND_API    = os.getenv('WAZZUP_SEND_API')
-DATABASE_URL       = os.getenv('DATABASE_URL')
-
-# === SQLAlchemy setup ===
-engine = create_engine(DATABASE_URL, pool_pre_ping=True)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
-
-class ChatRecord(Base):
-    __tablename__ = 'chat_records'
-    chat_id = Column(String, primary_key=True, index=True)
-    user_phone = Column(String, nullable=True)
-    last_bot_message = Column(DateTime, nullable=False)
-
-# создаём таблицу при старте
-Base.metadata.create_all(bind=engine)
+import os
 
 app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("DATABASE_URL")
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db = SQLAlchemy(app)
 
-# === Справочники и остальной код ===
+# === Настройки Wazzup и Bitrix ===
+API_BEARER_TOKEN = os.getenv("API_BEARER_TOKEN")
+BITRIX_WEBHOOK_URL = os.getenv("BITRIX_WEBHOOK_URL")
+CHANNEL_ID = 'c1808feb-0822-4203-a6dc-e2a07c705751'
+ALLOWED_CHAT_ID = '77766961328'
+ADMIN_CHAT_ID = '77778053727'
+WAZZUP_SEND_API = 'https://api.wazzup24.com/v3/message'
+
+# === Справочники ===
 CITIES = {
     '1': 'Алматы', '2': 'Нур-Султан', '3': 'Шымкент',
     '4': 'Караганда', '5': 'Актобе', '6': 'Астана'
 }
+
 DIRECTIONS = {
-    '1': 'Кирпич и блоки', '2': 'Цемент и растворы', '3': 'Арматура и металлопрокат',
-    '4': 'Древесина и пиломатериалы', '5': 'Кровельные материалы',
-    '6': 'Изоляция и утеплители', '7': 'Сантехника и водоснабжение',
-    '8': 'Электрооборудование', '9': 'Инструменты', '10': 'Отделочные материалы'
+    '1': 'Кирпич и блоки', '2': 'Цемент и растворы',
+    '3': 'Арматура и металлопрокат', '4': 'Древесина и пиломатериалы',
+    '5': 'Кровельные материалы', '6': 'Изоляция и утеплители',
+    '7': 'Сантехника и водоснабжение', '8': 'Электрооборудование',
+    '9': 'Инструменты', '10': 'Отделочные материалы'
 }
+
 RESPONSIBLES = {
     'Алматы': {'name': 'Менеджер Алматы', 'phone': '+7xxx', 'id': 2},
     'Нур-Султан': {'name': 'Менеджер Нур-Султана', 'phone': '+7xxx', 'id': 3},
@@ -50,147 +40,165 @@ RESPONSIBLES = {
     'Астана': {'name': 'Менеджер Астаны', 'phone': '+77001234567', 'id': 1},
 }
 
-# === Функция для записи в БД ===
-def record_chat_event(chat_id: str, user_phone: str = None):
-    session = SessionLocal()
-    try:
-        now = datetime.datetime.now()
-        record = session.query(ChatRecord).get(chat_id)
-        if record:
-            record.last_bot_message = now
-            if user_phone:
-                record.user_phone = user_phone
-        else:
-            record = ChatRecord(
-                chat_id=chat_id,
-                user_phone=user_phone,
-                last_bot_message=now
-            )
-            session.add(record)
-        session.commit()
-    finally:
-        session.close()
+# === Модель базы данных ===
+class Lead(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    chat_id = db.Column(db.String(50))
+    fio = db.Column(db.String(100))
+    phone = db.Column(db.String(30))
+    city = db.Column(db.String(50))
+    direction = db.Column(db.String(100))
+    created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
 
-# === Основные функции бота ===
+# === Состояния пользователей и обработанные сообщения ===
+user_states = {}
+processed_message_ids = set()
 
+# === Утилиты ===
 def log(msg):
-    ts = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    print(f"{ts} - {msg}")
-
+    print(f"{datetime.datetime.now():%Y-%m-%d %H:%M:%S} - {msg}")
 
 def send_message(chat_id: str, text: str) -> bool:
-    headers = {
-        'Authorization': f'Bearer {API_BEARER_TOKEN}',
-        'Content-Type':  'application/json'
+    headers = {'Authorization': f'Bearer {API_BEARER_TOKEN}', 'Content-Type': 'application/json'}
+    payload = {
+        "channelId": CHANNEL_ID,
+        "chatType": "whatsapp",
+        "chatId": chat_id,
+        "text": text
     }
-    payload = {"channelId": CHANNEL_ID, "chatType": "whatsapp", "chatId": chat_id, "text": text}
     try:
         r = requests.post(WAZZUP_SEND_API, json=payload, headers=headers, timeout=30)
-        log(f"Отправка в Wazzup ({chat_id}): {r.status_code}")
+        log(f"Wazzup Send ({chat_id}): {r.status_code}")
         return r.status_code in (200, 201)
     except Exception as e:
-        log(f"Ошибка отправки в Wazzup ({chat_id}): {e}")
+        log(f"Wazzup Error: {e}")
         return False
 
-# функции меню
-
-def get_menu_text():
-    return (
-        "👋 Добро пожаловать в *Optimus KZ*! 👋\n\n"
-        "Для начала выберите ваш регион, чтобы мы могли подобрать "
-        "регионального менеджера:\n" +
-        "\n".join(f"{k}. {v}" for k, v in CITIES.items())
+def notify_admin(fio, phone, city, event_type):
+    now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    text = (
+        f"🔔 *Новая заявка* в Bitrix24\n"
+        f"⏰ Время: {now}\n"
+        f"👤 Клиент: {fio} ({phone})\n"
+        f"🌆 Город: {city}\n"
+        f"🎯 Цель: {event_type}\n"
+        f"✅ Лид ожидает обработки в CRM."
     )
+    send_message(ADMIN_CHAT_ID, text)
+
+def create_bitrix_lead(city, event_type, fio, phone, chat_id):
+    parts = fio.split(' ')
+    last, first, second = (parts + ["", "", ""])[:3]
+    assigned_id = RESPONSIBLES.get(city, {'id': 1})['id']
+    comment = (
+        f"Источник: WhatsApp Bot\nСобытие: {event_type}\nГород: {city}\n"
+        f"Телефон клиента: {phone}\nКонтакт в WhatsApp: {fio}"
+    )
+    data = {
+        "fields": {
+            "TITLE": f"Optimus KZ Bot: {event_type} ({city})",
+            "NAME": first, "LAST_NAME": last, "SECOND_NAME": second,
+            "ASSIGNED_BY_ID": assigned_id,
+            "ADDRESS_CITY": city, "COMMENTS": comment,
+            "PHONE": [{"VALUE": phone, "VALUE_TYPE": "WORK"}]
+        },
+        "params": {"REGISTER_SONET_EVENT": "Y"}
+    }
+    try:
+        r = requests.post(BITRIX_WEBHOOK_URL, json=data, timeout=30)
+        log(f"Bitrix lead: {r.status_code} / {r.text}")
+        if r.status_code == 200 and r.json().get("result"):
+            notify_admin(fio, phone, city, event_type)
+            db.session.add(Lead(chat_id=chat_id, fio=fio, phone=phone, city=city, direction=event_type))
+            db.session.commit()
+        else:
+            send_message(chat_id, "⚠️ Проблема при сохранении заявки. Менеджер свяжется позже.")
+    except Exception as e:
+        log(f"Bitrix API error: {e}")
+        send_message(chat_id, "⚠️ Не удалось соединиться с CRM. Попробуйте позже.")
+
+# === Меню ===
+def get_menu_text():
+    return "👋 Добро пожаловать в *Optimus KZ*!\n\nВыберите город:\n" + \
+        "\n".join(f"{k}. {v}" for k, v in CITIES.items())
 
 def get_continue_menu():
-    return (
-        "Спасибо! Чем мы можем помочь дальше?\n"
-        "1️⃣ — Подобрать товары по направлению\n"
-        "2️⃣ — Заказать обратный звонок от менеджера"
-    )
+    return "Спасибо! Чем можем помочь?\n1️⃣ — Подобрать товары\n2️⃣ — Обратный звонок"
 
 def get_directions_menu():
-    return (
-        "Выберите направление подбора:\n" +
-        "\n".join(f"{k}. {v}" for k, v in DIRECTIONS.items()) +
-        "\n\n(Просто отправьте номер пункта)"
-    )
+    return "Выберите направление:\n" + \
+        "\n".join(f"{k}. {v}" for k, v in DIRECTIONS.items())
 
+# === Основной Webhook ===
 @app.route('/webhook', methods=['POST', 'GET'])
 def webhook():
     if request.method == 'GET':
         return jsonify({'status': 'ready'}), 200
 
     data = request.get_json(force=True)
-    log(f"Webhook received: {data}")
-
     for msg in data.get("messages", []):
-        mid     = msg.get("messageId")
+        mid = msg.get("messageId")
         chat_id = msg.get("chatId")
-        text    = msg.get("text", "").strip()
-        fio     = msg.get("contact", {}).get("name", "Неизвестный")
-        is_me   = msg.get("fromMe", False)
+        text = msg.get("text", "").strip()
+        fio = msg.get("contact", {}).get("name", "Неизвестный")
+        is_me = msg.get("fromMe", False)
         is_echo = msg.get("isEcho", False)
 
-        log(f"Msg {mid} from {chat_id}: «{text}» (echo={is_echo}, fromMe={is_me})")
-
-        # фильтры
-        if is_me or is_echo or not text or chat_id != ALLOWED_CHAT_ID:
+        if is_me or is_echo or not text or mid in processed_message_ids or chat_id != ALLOWED_CHAT_ID:
+            processed_message_ids.add(mid)
             continue
 
+        processed_message_ids.add(mid)
         state = user_states.get(chat_id, {"step": "city"})
 
-        # Шаг 1: выбор города
         if state["step"] == "city":
             if text in CITIES:
-                city = CITIES[text]
-                user_states[chat_id] = {"step": "menu", "city": city}
-                if send_message(chat_id, get_continue_menu()):
-                    # при переходе к меню ничего не сохраняем
-                    pass
+                user_states[chat_id] = {"step": "menu", "city": CITIES[text]}
+                send_message(chat_id, get_continue_menu())
             else:
                 send_message(chat_id, get_menu_text())
 
-        # Шаг 2: главное меню
         elif state["step"] == "menu":
             city = state["city"]
             if text == "1":
                 user_states[chat_id]["step"] = "direction"
                 send_message(chat_id, get_directions_menu())
             elif text == "2":
-                if send_message(chat_id,
-                    "📞 Ожидайте звонок нашего регионального менеджера в течение 15 минут.\n"
-                    "Спасибо за обращение в *Optimus KZ*!" ):
-                    # записываем событие "callback"
-                    record_chat_event(chat_id, fio)
+                send_message(chat_id, "📞 Ожидайте звонка менеджера.")
                 create_bitrix_lead(city, "Callback", fio, chat_id, chat_id)
                 user_states.pop(chat_id, None)
             else:
                 send_message(chat_id, get_continue_menu())
 
-        # Шаг 3: выбор направления
         elif state["step"] == "direction":
             city = state["city"]
             if text in DIRECTIONS:
                 direction = DIRECTIONS[text]
-                if send_message(chat_id,
-                    f"🎯 Вы выбрали: *{direction}* в городе *{city}*.\n"
-                    "Наш менеджер подготовит для вас подборку и свяжется "
-                    "для уточнения деталей. Спасибо, что выбрали *Optimus KZ*!" ):
-                    # записываем событие "direction"
-                    record_chat_event(chat_id, fio)
-                create_bitrix_lead(city, f"Direction: {direction}", fio, chat_id, chat_id)
+                send_message(chat_id,
+                    f"🎯 Вы выбрали: *{direction}* в городе *{city}*. Менеджер свяжется с вами.")
+                create_bitrix_lead(city, direction, fio, chat_id, chat_id)
                 user_states.pop(chat_id, None)
             else:
                 send_message(chat_id, get_directions_menu())
 
-        # Сброс
         else:
             user_states.pop(chat_id, None)
             send_message(chat_id, get_menu_text())
 
     return jsonify({'status': 'ok'}), 200
 
+# === Проверка подключения к БД ===
+@app.route('/ping-db')
+def ping_db():
+    try:
+        count = Lead.query.count()
+        return jsonify({"ok": True, "leads_count": count})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+# === Запуск сервера ===
 if __name__ == '__main__':
+    with app.app_context():
+        db.create_all()
     log("Сервер запущен, ожидаем webhook…")
     app.run(host='0.0.0.0', port=10000)
