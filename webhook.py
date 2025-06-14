@@ -96,7 +96,6 @@ def notify_admin(fio, phone, city, event_type):
 
 def create_bitrix_lead(city, event_type, fio, phone, chat_id):
     parts = fio.split()
-    # Разбиваем ФИО корректно, если меньше 3 частей - дополняем пустыми
     last = parts[0] if len(parts) > 0 else ''
     first = parts[1] if len(parts) > 1 else ''
     second = parts[2] if len(parts) > 2 else ''
@@ -166,7 +165,14 @@ def webhook():
         chat_id = msg.get("chatId")
         text = msg.get("text", "").strip()
         fio = msg.get("contact", {}).get("name", "Неизвестный")
-        phone = msg.get("contact", {}).get("phoneNumber", "")  # Добавил получение номера, если есть
+
+        # Здесь используем chatId как fallback для телефона
+        phone = msg.get("contact", {}).get("phoneNumber")
+        if not phone:
+            # Очищаем chatId, если там есть лишние символы, оставляем только цифры
+            raw_chat_id = chat_id or ""
+            phone = ''.join(filter(str.isdigit, raw_chat_id))
+
         is_me = msg.get("fromMe", False)
         is_echo = msg.get("isEcho", False)
 
@@ -192,7 +198,6 @@ def webhook():
                 send_message(chat_id, get_directions_menu())
             elif text == "2":
                 send_message(chat_id, "📞 Ожидайте звонок в течение 15 минут.")
-                # Передаем fio, phone из состояния, city из состояния, chat_id
                 create_bitrix_lead(city, "Callback", state.get("fio", fio), state.get("phone", phone), chat_id)
                 user_states.pop(chat_id, None)
             else:
@@ -214,7 +219,7 @@ def webhook():
             user_states.pop(chat_id, None)
             send_message(chat_id, get_menu_text())
 
-        # Очистка processed_message_ids, чтобы не занимать память бесконечно
+        # Ограничение размера кеша обработанных сообщений
         if len(processed_message_ids) > 1000:
             processed_message_ids.clear()
 
