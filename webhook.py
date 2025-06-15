@@ -47,15 +47,18 @@ def log(msg):
     ts = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     print(f"{ts} - {msg}")
 
-# === СОХРАНЕНИЕ В ТАБЛИЦУ users ===
-def save_user_to_db(chat_id, fio, phone, city):
-    created_at = datetime.datetime.utcnow()
+# === СОХРАНЕНИЕ В ТАБЛИЦУ users (только поля, которые есть в таблице) ===
+def save_user_to_db(chat_id, fio):
+    last_interaction = datetime.datetime.utcnow()
     try:
         cursor.execute("""
-            INSERT INTO users (chat_id, fio, phone, city, created_at)
-            VALUES (%s, %s, %s, %s, %s)
-        """, (chat_id, fio, phone, city, created_at))
-        log(f"✅ Пользователь сохранён в таблицу users: {fio} / {phone} / {city}")
+            INSERT INTO users (chat_id, fio, last_interaction)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (chat_id) DO UPDATE SET
+                fio = EXCLUDED.fio,
+                last_interaction = EXCLUDED.last_interaction
+        """, (chat_id, fio, last_interaction))
+        log(f"✅ Пользователь сохранён/обновлён в таблицу users: {fio} / {chat_id}")
     except Exception as e:
         log(f"❌ Ошибка добавления в таблицу users: {e}")
 
@@ -170,7 +173,7 @@ def webhook():
             elif text == "2":
                 send_message(chat_id, "📞 Ожидайте звонка...")
                 create_bitrix_lead(city, "Callback", fio, chat_id, chat_id)
-                save_user_to_db(chat_id, fio, chat_id, city)  # Сохраняем в users
+                save_user_to_db(chat_id, fio)  # <-- здесь убрали phone и city
                 user_states.pop(chat_id, None)
             else:
                 send_message(chat_id, get_continue_menu())
@@ -182,7 +185,7 @@ def webhook():
                 direction = DIRECTIONS[text]
                 send_message(chat_id, f"🎯 {direction} в {city}. Менеджер свяжется.")
                 create_bitrix_lead(city, f"Direction: {direction}", fio, chat_id, chat_id)
-                save_user_to_db(chat_id, fio, chat_id, city)  # Сохраняем в users
+                save_user_to_db(chat_id, fio)  # <-- здесь тоже
                 user_states.pop(chat_id, None)
             else:
                 send_message(chat_id, get_directions_menu())
