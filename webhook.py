@@ -47,7 +47,6 @@ def log(msg):
     ts = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     print(f"{ts} - {msg}")
 
-# === СОХРАНЕНИЕ В ТАБЛИЦУ users (только поля, которые есть в таблице) ===
 def save_user_to_db(chat_id, fio):
     last_interaction = datetime.datetime.utcnow()
     try:
@@ -146,13 +145,15 @@ def webhook():
         is_me   = msg.get("fromMe",False)
         is_echo = msg.get("isEcho",False)
 
-        if chat_id != ALLOWED_CHAT_ID:
-            continue
-
+        # === Защита от повторной обработки и системных сообщений ===
         if is_me or is_echo or not text or mid in processed_message_ids:
             processed_message_ids.add(mid)
             continue
         processed_message_ids.add(mid)
+
+        # === Ограничение диалога ===
+        if chat_id != ALLOWED_CHAT_ID and chat_id not in user_states:
+            continue
 
         state = user_states.get(chat_id, {"step": "city"})
 
@@ -173,19 +174,19 @@ def webhook():
             elif text == "2":
                 send_message(chat_id, "📞 Ожидайте звонка...")
                 create_bitrix_lead(city, "Callback", fio, chat_id, chat_id)
-                save_user_to_db(chat_id, fio)  # <-- здесь убрали phone и city
+                save_user_to_db(chat_id, fio)
                 user_states.pop(chat_id, None)
             else:
                 send_message(chat_id, get_continue_menu())
 
-        # Шаг 3: направление
+        # Шаг 3: выбор направления
         elif state["step"] == "direction":
             city = state["city"]
             if text in DIRECTIONS:
                 direction = DIRECTIONS[text]
                 send_message(chat_id, f"🎯 {direction} в {city}. Менеджер свяжется.")
                 create_bitrix_lead(city, f"Direction: {direction}", fio, chat_id, chat_id)
-                save_user_to_db(chat_id, fio)  # <-- здесь тоже
+                save_user_to_db(chat_id, fio)
                 user_states.pop(chat_id, None)
             else:
                 send_message(chat_id, get_directions_menu())
