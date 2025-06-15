@@ -47,17 +47,17 @@ def log(msg):
     ts = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     print(f"{ts} - {msg}")
 
-# ====== ИЗМЕНЕННАЯ ФУНКЦИЯ (БЕЗ event_type) ======
-def save_lead_to_db(chat_id, fio, phone, city):
+# === СОХРАНЕНИЕ В ТАБЛИЦУ users ===
+def save_user_to_db(chat_id, fio, phone, city):
     created_at = datetime.datetime.utcnow()
     try:
         cursor.execute("""
-            INSERT INTO lead (chat_id, fio, phone, city, created_at)
+            INSERT INTO users (chat_id, fio, phone, city, created_at)
             VALUES (%s, %s, %s, %s, %s)
         """, (chat_id, fio, phone, city, created_at))
-        log(f"✅ Лид добавлен в таблицу lead: {fio} / {phone} / {city}")
+        log(f"✅ Пользователь сохранён в таблицу users: {fio} / {phone} / {city}")
     except Exception as e:
-        log(f"❌ Ошибка добавления лида в таблицу lead: {e}")
+        log(f"❌ Ошибка добавления в таблицу users: {e}")
 
 def send_message(chat_id: str, text: str) -> bool:
     headers = {
@@ -170,7 +170,7 @@ def webhook():
             elif text == "2":
                 send_message(chat_id, "📞 Ожидайте звонка...")
                 create_bitrix_lead(city, "Callback", fio, chat_id, chat_id)
-                save_lead_to_db(chat_id, fio, chat_id, city)
+                save_user_to_db(chat_id, fio, chat_id, city)  # Сохраняем в users
                 user_states.pop(chat_id, None)
             else:
                 send_message(chat_id, get_continue_menu())
@@ -182,7 +182,7 @@ def webhook():
                 direction = DIRECTIONS[text]
                 send_message(chat_id, f"🎯 {direction} в {city}. Менеджер свяжется.")
                 create_bitrix_lead(city, f"Direction: {direction}", fio, chat_id, chat_id)
-                save_lead_to_db(chat_id, fio, chat_id, city)
+                save_user_to_db(chat_id, fio, chat_id, city)  # Сохраняем в users
                 user_states.pop(chat_id, None)
             else:
                 send_message(chat_id, get_directions_menu())
