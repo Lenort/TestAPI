@@ -8,13 +8,12 @@ app = Flask(__name__)
 
 # === Настройки базы данных (Supabase) ===
 # Читаем URL из переменной окружения или используем хардкод
-DB_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://postgres:Asd987321aw@aws-0-eu-central-1.pooler.supabase.com:6543/postgres"
-)
+DB_URL = os.getenv("DATABASE_URL")
+if not DB_URL:
+    raise RuntimeError("DATABASE_URL is not set")
 conn = psycopg2.connect(DB_URL)
 conn.autocommit = True
-cursor = conn.cursor()()
+cursor = conn.cursor()
 
 # === Настройки Wazzup ===
 API_BEARER_TOKEN = '92a8247c0ce7472a86a5c36f71327d19'
