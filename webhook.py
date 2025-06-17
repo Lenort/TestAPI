@@ -57,9 +57,9 @@ def save_user_to_db(chat_id, fio):
                 fio = EXCLUDED.fio,
                 last_interaction = EXCLUDED.last_interaction
         """, (chat_id, fio, last_interaction))
-        log(f"✅ Пользователь сохранён/обновлён в таблицу users: {fio} / {chat_id}")
+        log(f"✅ Пользователь сохранён/обновлён: {fio} / {chat_id}")
     except Exception as e:
-        log(f"❌ Ошибка добавления в таблицу users: {e}")
+        log(f"❌ Ошибка при сохранении пользователя: {e}")
 
 def send_message(chat_id: str, text: str) -> bool:
     headers = {
@@ -74,7 +74,7 @@ def send_message(chat_id: str, text: str) -> bool:
     }
     try:
         r = requests.post(WAZZUP_SEND_API, json=payload, headers=headers, timeout=30)
-        log(f"Отправка в Wazzup ({chat_id}): {r.status_code}")
+        log(f"Отправлено в Wazzup ({chat_id}): {r.status_code}")
         return r.status_code in (200, 201)
     except Exception as e:
         log(f"Ошибка отправки в Wazzup ({chat_id}): {e}")
@@ -83,12 +83,12 @@ def send_message(chat_id: str, text: str) -> bool:
 def notify_admin(fio, phone, city, event_type):
     now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     text = (
-        f"🔔 *Новая заявка* в Bitrix24\n"
-        f"⏰ {now}\n"
-        f"👤 {fio} ({phone})\n"
-        f"🌆 {city}\n"
-        f"🎯 {event_type}\n"
-        "✅ Лид ожидает обработки."
+        "🔔 *Новая заявка!*\n"
+        f"⏰ *{now}*\n"
+        f"👤 *Клиент:* {fio} ({phone})\n"
+        f"📍 *Город:* {city}\n"
+        f"🎯 *Событие:* {event_type}\n"
+        "\n✅ Лид ожидает обработки"
     )
     send_message(ADMIN_CHAT_ID, text)
 
@@ -112,30 +112,40 @@ def create_bitrix_lead(city, event_type, fio, phone, chat_id):
     },"params":{"REGISTER_SONET_EVENT":"Y"}}
     try:
         r = requests.post(BITRIX_WEBHOOK_URL, json=data, timeout=30)
-        log(f"Bitrix lead: {r.status_code}")
-        if r.status_code==200 and r.json().get("result"):
+        log(f"Bitrix24 ответ: {r.status_code}")
+        if r.status_code == 200 and r.json().get("result"):
             notify_admin(fio, phone, city, event_type)
     except Exception as e:
-        log(f"Bitrix API error: {e}")
+        log(f"Ошибка Bitrix24 API: {e}")
 
 def get_menu_text():
-    return "👋 Добро пожаловать в *Optimus KZ*!\nВыберите регион:\n" + \
-           "\n".join(f"{k}. {v}" for k,v in CITIES.items())
+    return (
+        "👋 *Добро пожаловать в Optimus KZ!*\n"
+        "📍 Для начала подскажите, из какого вы города?
+        Это нужно, чтобы мы могли прислать вам адрес ближайшего склада и связать с подходящим менеджером.:\n"
+        + "\n".join(f"*{k}.* {v}" for k, v in CITIES.items())
+    )
 
 def get_continue_menu():
-    return "1️⃣ Подобрать товары\n2️⃣ Заказать звонок"
+    return (
+        "Что бы вы хотели сделать дальше?\n"
+        "*1️⃣ Подобрать товары*\n"
+        "*2️⃣ Заказать звонок*"
+    )
 
 def get_directions_menu():
-    return "Выберите направление:\n" + \
-           "\n".join(f"{k}. {v}" for k,v in DIRECTIONS.items())
+    return (
+        "🎯 Выберите интересующее направление:\n"
+        + "\n".join(f"*{k}.* {v}" for k, v in DIRECTIONS.items())
+    )
 
 @app.route('/webhook', methods=['POST','GET'])
 def webhook():
-    if request.method=='GET':
-        return jsonify({'status':'ready'}),200
+    if request.method == 'GET':
+        return jsonify({'status':'ready'}), 200
 
     data = request.get_json(force=True)
-    log(f"Webhook received: {data}")
+    log(f"Получено webhook: {data}")
 
     for msg in data.get("messages", []):
         mid     = msg.get("messageId")
@@ -145,13 +155,13 @@ def webhook():
         is_me   = msg.get("fromMe",False)
         is_echo = msg.get("isEcho",False)
 
-        # === Защита от повторной обработки и системных сообщений ===
+        # Защита от повторов и системных сообщений
         if is_me or is_echo or not text or mid in processed_message_ids:
             processed_message_ids.add(mid)
             continue
         processed_message_ids.add(mid)
 
-        # === Ограничение диалога ===
+        # Только разрешенные чаты
         if chat_id != ALLOWED_CHAT_ID and chat_id not in user_states:
             continue
 
@@ -172,8 +182,8 @@ def webhook():
                 user_states[chat_id]["step"] = "direction"
                 send_message(chat_id, get_directions_menu())
             elif text == "2":
-                send_message(chat_id, "📞 Ожидайте звонка...")
-                create_bitrix_lead(city, "Callback", fio, chat_id, chat_id)
+                send_message(chat_id, "📞 *Наш менеджер скоро свяжется с вами!*")
+                create_bitrix_lead(city, "Callback", fio, chat_id)
                 save_user_to_db(chat_id, fio)
                 user_states.pop(chat_id, None)
             else:
@@ -184,8 +194,8 @@ def webhook():
             city = state["city"]
             if text in DIRECTIONS:
                 direction = DIRECTIONS[text]
-                send_message(chat_id, f"🎯 {direction} в {city}. Менеджер свяжется.")
-                create_bitrix_lead(city, f"Direction: {direction}", fio, chat_id, chat_id)
+                send_message(chat_id, f"✅ Вы выбрали *{direction}* в *{city}*.\nМенеджер с вами свяжется.")
+                create_bitrix_lead(city, f"{direction}", fio, chat_id)
                 save_user_to_db(chat_id, fio)
                 user_states.pop(chat_id, None)
             else:
@@ -195,8 +205,8 @@ def webhook():
             user_states.pop(chat_id, None)
             send_message(chat_id, get_menu_text())
 
-    return jsonify({'status':'ok'}),200
+    return jsonify({'status':'ok'}), 200
 
 if __name__ == '__main__':
-    log("Server started, waiting for webhook…")
+    log("Сервер запущен и готов принимать webhook-сообщения...")
     app.run(host='0.0.0.0', port=10000)
